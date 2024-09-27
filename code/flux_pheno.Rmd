@@ -1,0 +1,108 @@
+---
+title: 'UGLR Warm Winters: Flux Phenology'
+author: "Lisa Haber"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+UGLR Warm Winters working group is a network of AmeriFlux and NEON flux tower sites in the Upper Great Lakes Region (UGLR) spanning Minnesota, Wisconsin, Michigan, and Ohio. Our primary interest is to assess how wintertime warming in this region is impacting annual net carbon exchange between forests and atmosphere, and specifically whether increases in wintertime ecosystem respiration (ER) are offsetting carbon uptake through gross primary production (GPP) sufficiently to alter the carbon balance of these systems.
+
+Winter 2023-2024 was anomalously warm 
+
+## Part 1: UGLR Forest Carbon Flux Phenology 
+
+Part 1 is an initial assessment of carbon flux phenology (CFP) for sites within the UGLR Warm Winters working group's region of interest. Tower data for several sites are assessed. The general approach to segmenting flux phenological phases comes from methods detailed in the following publications:  
+  
+[Noormets et al. (2009)](https://www.srs.fs.usda.gov/pubs/ja/2009/ja_2009_noormets_001.pdf)    
+[Baldocchi et al. (2005)](https://nature.berkeley.edu/biometlab/pdf/ddb%20et%20al%202005%20Int%20J%20Biomet.pdf)   
+
+![Fig. 1 Baldocchi et al. (2005)](Fig1Baldocchi.jpg)  
+  
+>"The date of onset of net carbon uptake was identified as
+the day when daily integrated net CO2 exchange (NEE)
+experienced a transition from its winter respiration phase
+to its spring/summer assimilation phase (Fig. 1). To deduce
+this date with objective and statistical rigor, we regressed
+measurements of daily NEE on day of year, using a
+subsets of data from this springtime source-sink transition
+period. The method has a clean and distinct signal with
+a quantifiable error. For the case shown in Fig. 1, the
+statistical variation in detecting the precise date of the
+zero crossing is ±2 days, based on the 95% confidence interval."
+-Baldocchi et al. (2005)
+
+
+*List of sites:*  
+[US-UMB](https://ameriflux.lbl.gov/sites/siteinfo/US-UMB)    
+[US-UMd](https://ameriflux.lbl.gov/sites/siteinfo/US-UMd)    
+[US-Syv](https://ameriflux.lbl.gov/sites/siteinfo/US-Syv)    
+[US-WCr](https://ameriflux.lbl.gov/sites/siteinfo/US-WCr)    
+
+```{r, echo=TRUE, results='hide', warning=FALSE}
+# load dependencies
+library(tidyverse)
+library(lubridate) # work with dates
+library(dplyr)     # data manipulation (filter, summarize, mutate)
+library(ggplot2)   # graphics
+library(here)
+library(plotly)
+library(Metrics)
+library(ggpubr)
+library(patchwork) # To display 2 charts together
+library(hrbrthemes)
+library(htmltools)
+```
+
+
+```{r}
+# load data, name by site ID
+
+# Willow Creek, US-WCr
+# 2024
+# FLUXNET data not available; we have HH data only
+data_WCr_2024 <- read.csv(here("data/US-WCr_HH_202401010000_202406190000.csv")) %>%
+  mutate_if(is.logical, ~as.numeric(.)) %>%
+  mutate(across(everything(), ~na_if(., -9999))) %>%
+  mutate(Year = substr(TIMESTAMP_START, 1, 4),
+         Month = substr(TIMESTAMP_START, 5, 6),
+         Day = substr(TIMESTAMP_START, 7, 8),
+         Hour = substr(TIMESTAMP_START, 9, 10),
+         Minute = substr(TIMESTAMP_START, 11, 12),
+         Datetime = as.POSIXct(strptime(paste(Year, Month, Day,
+                                              paste(Hour, Minute, sep=":")),
+                                        format = "%Y %m %d %H:%M")), 
+         Date = make_date(Year, Month, Day),
+         Time = format(Datetime, format = "%H:%M"),
+         DoY = yday(Datetime))
+
+# Sylvania, US-Syv
+# 2001 - 2021, FLUXNET daily means available
+data_Syv_01_21 <- read.csv(here("data/AMF_US-Syv_FLUXNET_SUBSET_DD_2001-2021_3-5.csv")) %>%
+  mutate_if(is.logical, ~as.numeric(.)) %>%
+  mutate(across(everything(), ~na_if(., -9999))) %>%
+  mutate(Year = substr(TIMESTAMP, 1, 4),
+         Month = substr(TIMESTAMP, 5, 6),
+         Day = substr(TIMESTAMP, 7, 8),
+         Datetime = as.POSIXct(strptime(paste(Year, Month, Day),
+                                        format = "%Y %m %d")),
+         Date = make_date(Year, Month, Day),
+         DoY = yday(Datetime))
+
+
+```
+
+## Part 2: Inter- and Intrasite Flux Comparison
+
+We are primarily interested in assessing the following:
+(1) magnitude of GPP, ER, NEE for network sites in winter
+(2) evaluating whether winter ER and early Spring GPP were greater than prior years because of higher temps and, if so, whether increases in GPP sufficiently offset opposing increases in ER
+
+
