@@ -1,121 +1,247 @@
+
+setwd("/Users/pujasharma/Downloads/UGLR_warm_winter_fluxes/data")
 library(tidyverse)
-library(lubridate) # work with dates
-library(dplyr)     # data manipulation (filter, summarize, mutate)
-library(ggplot2)   # graphics
+library(lubridate) 
+library(dplyr)    
+library(ggplot2)  
 library(here)
 library(plotly)
 library(Metrics)
 library(ggpubr)
-library(patchwork) # To display 2 charts together
+library(patchwork) 
 library(hrbrthemes)
 library(htmltools)
 # load data, name by site ID
 
-
-#####Sylvania, US-Syv####
-# 2001 - 2021, FLUXNET daily means available
-data_Syv_01_21 <- read.csv(here("data/AMF_US-Syv_FLUXNET_SUBSET_DD_2001-2021_3-5.csv")) %>%
-  mutate_if(is.logical, ~as.numeric(.)) %>%
-  mutate(across(everything(), ~na_if(., -9999))) %>%
-  mutate(Year = substr(TIMESTAMP, 1, 4),
-         Month = substr(TIMESTAMP, 5, 6),
-         Day = substr(TIMESTAMP, 7, 8),
-         Datetime = as.POSIXct(strptime(paste(Year, Month, Day),
-                                        format = "%Y %m %d")),
-         Date = make_date(Year, Month, Day),
-         DoY = yday(Datetime))
-
-data_Syv_2002 <- read.csv(here("data/AMF_US-Syv_FLUXNET_SUBSET_DD_2001-2021_3-5.csv")) %>%
-  mutate_if(is.logical, ~as.numeric(.)) %>%
-  mutate(across(everything(), ~na_if(., -9999))) %>%
-  mutate(Year = as.numeric(substr(TIMESTAMP, 1, 4)), 
-         Month = substr(TIMESTAMP, 5, 6),
-         Day = substr(TIMESTAMP, 7, 8),
-         Datetime = as.POSIXct(strptime(paste(Year, Month, Day), format = "%Y %m %d")),
-         Date = make_date(Year, Month, Day),
-         DoY = yday(Datetime)) %>%
-  filter(Year == 2002)  
-
-
-data_Syv_2016 <- read.csv(here("data/AMF_US-Syv_FLUXNET_SUBSET_DD_2001-2021_3-5.csv")) %>%
-  mutate_if(is.logical, ~as.numeric(.)) %>%
-  mutate(across(everything(), ~na_if(., -9999))) %>%
-  mutate(Year = as.numeric(substr(TIMESTAMP, 1, 4)), 
-         Month = substr(TIMESTAMP, 5, 6),
-         Day = substr(TIMESTAMP, 7, 8),
-         Datetime = as.POSIXct(strptime(paste(Year, Month, Day), format = "%Y %m %d")),
-         Date = make_date(Year, Month, Day),
-         DoY = yday(Datetime)) %>%
-  filter(Year == 2016)  
-
-
-data_Syv_2021 <- read.csv(here("data/AMF_US-Syv_FLUXNET_SUBSET_DD_2001-2021_3-5.csv")) %>%
-  mutate_if(is.logical, ~as.numeric(.)) %>%
-  mutate(across(everything(), ~na_if(., -9999))) %>%
-  mutate(Year = as.numeric(substr(TIMESTAMP, 1, 4)),  
-         Month = substr(TIMESTAMP, 5, 6),
-         Day = substr(TIMESTAMP, 7, 8),
-         Datetime = as.POSIXct(strptime(paste(Year, Month, Day), format = "%Y %m %d")),
-         Date = make_date(Year, Month, Day),
-         DoY = yday(Datetime)) %>%
-  filter(Year == 2021)  
-
-#Plotting Syv NEE
-plot(data_Syv_2016$DoY, data_Syv_2016$NEE_VUT_25, 
-     type = "o", col = "black", 
-     xlab = "DOY", ylab = "NEE", 
-, main = "SYV:NEE", pch=16)
-
-points(data_Syv_2002$DoY, data_Syv_2002$NEE_VUT_25, 
-       col = "red", type = "o", pch=16)
-
-points(data_Syv_2021$DoY, data_Syv_2021$NEE_VUT_25, 
-       col = "purple", type = "o",pch=16)
-
-
-legend("topleft", legend = c("2016", "2002", "2021"),
-       col = c("black", "red", "purple"), lty = 1)
-
-#######US-Willow Creek (WCr) ########
 library(dplyr)
-#loaded .csv file of willow creek and also averaged out half hourly data to daily.
-data_WCr_01_21 <- read.csv(here("data/AMF_US-WCr_BASE_HH_30-5.csv")) %>%
+library(lubridate)
+
+# Read data
+###SyV#####
+
+SyV <- read.csv("AMF_US-Syv_BASE_HH_29-5.csv") %>%
+  mutate(across(where(is.numeric), ~na_if(., -9999)))
+
+
+# Converting TIMESTAMP_START to datetime
+SyV <- SyV %>%
   mutate_if(is.logical, ~as.numeric(.)) %>%
-  mutate(across(everything(), ~na_if(., -9999))) %>%
-  mutate(Year = substr(TIMESTAMP_START, 1, 4),
-         Month = substr(TIMESTAMP_START, 5, 6),
-         Day = substr(TIMESTAMP_START, 7, 8),
-         Datetime = as.POSIXct(strptime(paste(Year, Month, Day),
-                                        format = "%Y %m %d")),
-         Date = make_date(Year, Month, Day),
-         DoY = yday(Datetime))%>%
+  filter(!is.na(TS_2_2_1) & !is.na(RECO_PI_F)) %>%
+  mutate(
+    TIMESTAMP_START = ymd_hm(as.character(TIMESTAMP_START)),
+    Date = as.Date(TIMESTAMP_START),
+    Year = year(Date),  # getting year from Date column
+    Month = month(Date)  # getting year from Date column
+    )
+SyV <- SyV %>%
+  mutate(Winter_Year = if_else(Month %in% c(1, 2), Year - 1L, Year)) %>%
+  filter(Month %in% c(11, 12, 1, 2))
+
+#  group by Date and lets do daily averages
+SyV_daily <- SyV %>%
   group_by(Date) %>%
   summarise(across(where(is.numeric), mean, na.rm = TRUE))
 
-data_WCr_2001_2004 <- data_WCr_01_21 %>%
-  filter(Date >= as.Date("2001-01-01") & Date <= as.Date("2004-12-31"))
+fit_nls_Q10_SyV <- function(df) {
+  model <- nls(RECO_PI_F ~ a * exp(b * TS_2_2_1), data = df, start = list(a = 1, b = 0.01))
+  coefficients <- coef(model)
+  Q10_value <- exp(10 * coefficients["b"])
+  return(data.frame(a = coefficients["a"], b = coefficients["b"], Q10 = Q10_value))
+}
 
-data_WCr_2020_2024 <- data_WCr_01_21 %>%
-  filter(Date >= as.Date("2020-01-01") & Date <= as.Date("2024-12-31"))
+results_SyV <- SyV_daily %>%
+  group_by(Winter_Year) %>%
+  do(fit_nls_Q10_SyV(.)) %>%
+  ungroup()
 
-data_WCr_2016_2020 <- data_WCr_01_21 %>%
-  filter(Date >= as.Date("2016-01-01") & Date <= as.Date("2020-12-31"))
+# View the results
+print(results_SyV)
+
+#####Wcr#####
+# Load the Wcr data
+
+data_Wcr_01_21 <- read.csv("AMF_US-Wcr_FLUXNET_SUBSET_DD_2007-2021_3-5.csv") %>%
+  mutate(across(where(is.numeric), ~na_if(.x, -9999))) %>%      # if needed
+  filter(!is.na(TS_1_1_1) & !is.na(RECO_PI_F)) %>%
+  mutate(
+    Year  = as.integer(substr(TIMESTAMP_START, 1, 4)),
+    Month = as.integer(substr(TIMESTAMP_START, 5, 6)),
+    Day   = as.integer(substr(TIMESTAMP_START, 7, 8)),
+    Datetime = as.POSIXct(strptime(paste(Year, Month, Day), format = "%Y %m %d")),
+    Date     = make_date(Year, Month, Day),
+    DoY      = yday(Datetime)
+  ) %>%
+  filter(Year >= 2012 & Year <= 2024) %>%
+  mutate(Winter_Year = if_else(Month %in% c(1, 2), Year - 1L, Year)) %>%
+  filter(Month %in% c(11, 12, 1, 2))
+
+str(data_Wcr_01_21)
+
+#function to fit model and calculate q10
+fit_nls_Q10_Wcr <- function(df) {
+  model <- nls(RECO_PI_F ~ a * exp(b * TS_1_1_1), data = df, start = list(a = 1, b = 0.01))
+  coefficients <- coef(model)
+  Q10_value <- exp(10 * coefficients["b"])
+  return(data.frame(a = coefficients["a"], b = coefficients["b"], Q10 = Q10_value))
+}
+
+# Apply the function to each year in the dataset
+results_Wcr <- data_Wcr_01_21 %>%
+  group_by(Winter_Year) %>%
+  do(fit_nls_Q10_Wcr(.)) %>%
+  ungroup()
+
+# View the results
+print(results_Wcr)
+
+
+###UMB#####
+UMB <- read.csv("AMF_US-UMB_BASE_HH_21-5.csv") %>%
+  mutate(across(where(is.numeric), ~na_if(., -9999)))
+
+# Converting TIMESTAMP_START to datetime
+UMB <- UMB %>%
+  mutate_if(is.logical, ~as.numeric(.)) %>%
+  filter(!is.na(TS_1_1_1) & !is.na(RECO_PI_F)) %>%
+  mutate(
+    TIMESTAMP_START = ymd_hm(as.character(TIMESTAMP_START)),
+    Date = as.Date(TIMESTAMP_START),
+    Year = year(Date),  # getting year from Date column
+    Month = month(Date)  # getting year from Date column
+  )
+UMB <- UMB %>%
+  mutate(Winter_Year = if_else(Month %in% c(1, 2), Year - 1L, Year)) %>%
+  filter(Month %in% c(11, 12, 1, 2))
+#  group by Date and lets do daily averages
+UMB_daily <- UMB %>%
+  group_by(Date) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
+
+#function to fit model and calculate q10
+fit_nls_Q10_UMB <- function(df) {
+  model <- nls(RECO_PI_F ~ a * exp(b * TS_1_1_1), data = df, start = list(a = 1, b = 0.01))
+  coefficients <- coef(model)
+  Q10_value <- exp(10 * coefficients["b"])
+  return(data.frame(a = coefficients["a"], b = coefficients["b"], Q10 = Q10_value))
+}
+
+results_UMB <- UMB_daily %>%
+  group_by(Winter_Year) %>%
+  do(fit_nls_Q10_UMB(.)) %>%
+  ungroup()
+
+print(results_UMB)
 
 
 
-#Plot NEE of WCr
-plot(data_WCr_2020_2024$DoY, data_WCr_2020_2024$NEE_PI, 
-     type = "o", col = "black", 
-     xlab = "Datetime", ylab = "NEE", 
-     main = "Willow Creek: NEE", ylim = c(-30,30))
+###UMd#####
+UMd <- read.csv("AMF_US-UMd_BASE_HH_15-5.csv") %>%
+  mutate(across(where(is.numeric), ~na_if(., -9999)))
 
-points(data_WCr_2001_2004$DoY, data_WCr_2001_2004$NEE_PI, 
-      col = "red", type = "o")
+# Converting TIMESTAMP_START to datetime
+UMd <- UMd %>%
+  mutate_if(is.logical, ~as.numeric(.)) %>%
+  filter(!is.na(TS_1_1_1) & !is.na(RECO_PI_F)) %>%
+  mutate(
+    TIMESTAMP_START = ymd_hm(as.character(TIMESTAMP_START)),
+    Date = as.Date(TIMESTAMP_START),
+    Year = year(Date),  # getting year from Date column
+    Month = month(Date)  # getting year from Date column
+  )
+UMd <- UMd %>%
+  mutate(Winter_Year = if_else(Month %in% c(1, 2), Year - 1L, Year)) %>%
+  filter(Month %in% c(11, 12, 1, 2))
 
-points(data_WCr_2016_2020$DoY, data_WCr_2016_2020$NEE_PI, 
-      col = "purple", type = "o")
+#  group by Date and lets do daily averages
+UMd_daily <- UMd %>%
+  group_by(Date) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE))
 
-legend("topright", legend = c("2020-2024", "2001-2004", "2016-2020"),
-       col = c("black", "red","purple"), lty = 1, cex=0.9)
+#function to fit model and calculate q10
+fit_nls_Q10_UMd <- function(df) {
+  model <- nls(RECO_PI_F ~ a * exp(b * TS_1_1_1), data = df, start = list(a = 1, b = 0.01))
+  coefficients <- coef(model)
+  Q10_value <- exp(10 * coefficients["b"])
+  return(data.frame(a = coefficients["a"], b = coefficients["b"], Q10 = Q10_value))
+}
 
+results_UMd <- UMd_daily %>%
+  group_by(Winter_Year) %>%
+  do(fit_nls_Q10_UMd(.)) %>%
+  ungroup()
+
+print(results_UMd)
+
+
+
+###PFa#####
+# Load the PFa data
+# Read the CSV file and process data
+
+
+data_PFa_01_21 <- read.csv("AMF_US-PFa_BASE_HR_29-5.csv", header = TRUE, sep = ",", skip = 2) %>%
+  mutate(
+    TIMESTAMP_START = ymd_hm(TIMESTAMP_START),  # Convert to datetime
+    Date = as.Date(TIMESTAMP_START)
+  ) %>%
+  group_by(Date) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE)) %>%
+  mutate(across(where(is.numeric), ~na_if(.x, -9999))) %>%
+  filter(!is.na(TS_1_1_1) & !is.na(RECO_PI_F)) %>%
+  mutate(
+    Year = year(Date),
+    Month = month(Date),
+    Day = day(Date),
+    DoY = yday(Date)
+  ) %>%
+  filter(Year >= 2012 & Year <= 2024) %>%       # filter by years
+  mutate(Winter_Year = if_else(Month %in% c(1, 2), Year - 1L, Year)) %>%
+  filter(Month %in% c(11, 12, 1, 2))            # keep only Nov, Dec, Jan, Feb
+
+
+#function to fit model and calculate q10
+fit_nls_Q10_PFa <- function(df) {
+  model <- nls(RECO_PI_F ~ a * exp(b * TS_1_1_1), data = df, start = list(a = 1, b = 0.01))
+  coefficients <- coef(model)
+  Q10_value <- exp(10 * coefficients["b"])
+  return(data.frame(a = coefficients["a"], b = coefficients["b"], Q10 = Q10_value))
+}
+
+results_PFa <- data_PFa_01_21 %>%
+  group_by(Winter_Year) %>%
+  do(fit_nls_Q10_PFa(.)) %>%
+  ungroup()
+
+print(results_PFa)
+
+######NEON BUNDLED .h5 UNDE site#####
+library(rhdf5)
+setwd("/Users/pujasharma/Downloads")
+f_Nov23 <- "NEON.D05.UNDE.DP4.00200.001.nsae.2023-11.basic.20250122T184756Z.h5"
+f_Dec23 <- "NEON.D05.UNDE.DP4.00200.001.nsae.2023-12.basic.20250122T185000Z.h5"
+f_Jan24 <- "NEON.D05.UNDE.DP4.00200.001.nsae.2024-01.basic.20250122T185102Z.h5"
+f_Feb24 <- "NEON.D05.UNDE.DP4.00200.001.nsae.2024-02.basic.20250122T184723Z.h5"
+
+dat_main_stor_f_Nov23 <- h5read(f_Nov23, "/UNDE/dp04/data") 
+
+plot(results_UMB$Winter_Year, results_UMB$Q10, type = "o", pch = 15, col = "red",ylim = c(0,20))
+
+points(results_SyV$Winter_Year, results_SyV$Q10,
+     type = "o", pch = 14, col = "blue",
+     ylab = "Q10", xlab = "Year",
+     main = "Winter Months Q10: NDJF")
+
+#other sites
+points(results_UMd$Winter_Year, results_UMd$Q10, type = "o", pch = 16, col = "darkgreen")
+points(results_PFa$Winter_Year, results_PFa$Q10, type = "o", pch = 17, col = "purple")
+points(results_Wcr$Winter_Year, results_Wcr$Q10, type = "o", pch = 18, col = "orange")
+
+# legend
+legend("topright",                                  
+       legend = c("SyV", "UMB", "UMd", "PFa", "Wcr"), 
+       col = c("blue", "red", "darkgreen", "purple", "orange"),  
+       pch = c(14, 15, 16, 17, 18), 
+       lty = 1,                     
+       bty = "n",                   
+       cex = 0.8)                   
 
